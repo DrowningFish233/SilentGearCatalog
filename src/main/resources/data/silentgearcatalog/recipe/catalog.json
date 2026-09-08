@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "B": {
+      "item": "silentgear:material_book"
+    }
+  },
+  "pattern": [
+    " G ",
+    "GBG",
+    " G "
+  ],
+  "result": {
+    "count": 1,
+    "id": "silentgearcatalog:catalog"
+  }
+}
