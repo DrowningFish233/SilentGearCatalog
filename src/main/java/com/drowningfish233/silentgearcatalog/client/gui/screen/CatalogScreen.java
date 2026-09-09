@@ -1,5 +1,6 @@
 package com.drowningfish233.silentgearcatalog.client.gui.screen;
 
+import com.drowningfish233.silentgearcatalog.Utils.SearchUtils;
 import com.drowningfish233.silentgearcatalog.client.gui.catalog.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -21,11 +22,26 @@ public class CatalogScreen extends Screen {
     private static final int DETAIL_WIDTH = 240;
     private static final int DETAIL_MAX_HEIGHT = 300;
 
+    private static final State STATE = new State();
+
+    private static final class State {
+        Page page = Page.MATERIALS;
+        String searchQuery = "";
+        String sortKey = "_name";
+        boolean sortDescending = false;
+        Set<String> activeFilters = new HashSet<>();
+        Set<String> activePartFilters = new HashSet<>();
+        int mainScroll = 0;
+        int filterPopupScroll = 0;
+        int partFilterPopupScroll = 0;
+        int sortPopupScroll = 0;
+    }
+
     private final Screen parent;
     private CatalogSnapshot snapshot = CatalogSnapshot.loading();
     private List<CatalogEntry> visibleEntries = List.of();
 
-    private Page page = Page.MATERIALS;
+    private Page page = STATE.page;
     private EditBox searchBox;
     private CatalogButton materialButton;
     private CatalogButton traitButton;
@@ -33,26 +49,27 @@ public class CatalogScreen extends Screen {
     private CatalogButton partFilterButton;
     private CatalogButton sortButton;
     private CatalogButton sortOrderButton;
-    private String searchQuery = "";
-    private int mainScroll = 0;
+    private CatalogButton resetButton;
+    private String searchQuery = STATE.searchQuery;
+    private int mainScroll = STATE.mainScroll;
 
-    private String currentSortKey = "_name";
-    private boolean sortDescending = false;
+    private String currentSortKey = STATE.sortKey;
+    private boolean sortDescending = STATE.sortDescending;
     private boolean showSortPopup = false;
     private Map<String, AttributeSort> availableSorts = new LinkedHashMap<>();
-    private int sortPopupScroll = 0;
+    private int sortPopupScroll = STATE.sortPopupScroll;
     private static final int SORT_POPUP_MAX_ROWS = 12;
 
     private boolean showFilterPopup = false;
-    private Set<String> activeFilters = new HashSet<>();
+    private Set<String> activeFilters = new HashSet<>(STATE.activeFilters);
     private List<AttributeFilter> availableFilters = new ArrayList<>();
-    private int filterPopupScroll = 0;
+    private int filterPopupScroll = STATE.filterPopupScroll;
     private static final int FILTER_POPUP_MAX_ROWS = 12;
 
     private boolean showPartFilterPopup = false;
-    private Set<String> activePartFilters = new HashSet<>();
+    private Set<String> activePartFilters = new HashSet<>(STATE.activePartFilters);
     private List<PartTypeFilter> partTypeFilters = new ArrayList<>();
-    private int partFilterPopupScroll = 0;
+    private int partFilterPopupScroll = STATE.partFilterPopupScroll;
     private static final int PART_FILTER_POPUP_MAX_ROWS = 12;
 
     private CatalogEntry detailEntry = null;
@@ -85,6 +102,16 @@ public class CatalogScreen extends Screen {
         super(Component.translatable("screen.silentgearcatalog.catalog"));
         this.parent = parent;
         this.detailWidth = DETAIL_WIDTH;
+        this.page = STATE.page;
+        this.searchQuery = STATE.searchQuery;
+        this.currentSortKey = STATE.sortKey;
+        this.sortDescending = STATE.sortDescending;
+        this.mainScroll = STATE.mainScroll;
+        this.filterPopupScroll = STATE.filterPopupScroll;
+        this.partFilterPopupScroll = STATE.partFilterPopupScroll;
+        this.sortPopupScroll = STATE.sortPopupScroll;
+        this.activeFilters = new HashSet<>(STATE.activeFilters);
+        this.activePartFilters = new HashSet<>(STATE.activePartFilters);
     }
 
     @Override
@@ -163,6 +190,12 @@ public class CatalogScreen extends Screen {
                 b -> this.toggleSortOrder()
         ));
 
+        this.resetButton = this.addRenderableWidget(new CatalogButton(
+                btnX + 196, searchY, 40, 20,
+                Component.literal("↺"),
+                b -> this.resetAllSettings()
+        ));
+
         this.updateSortOrderButton();
     }
 
@@ -199,6 +232,43 @@ public class CatalogScreen extends Screen {
         this.updateSortOrderButton();
         this.rebuildVisibleEntries();
         this.updateButtonStates();
+    }
+
+    private void resetAllSettings() {
+        this.page = Page.MATERIALS;
+        this.searchQuery = "";
+        this.currentSortKey = "_name";
+        this.sortDescending = false;
+        this.activeFilters.clear();
+        this.activePartFilters.clear();
+        this.mainScroll = 0;
+        this.detailEntry = null;
+        this.detailLocked = false;
+        this.hoveredTraitName = null;
+        this.hoveredTraitId = null;
+
+        if (this.searchBox != null) {
+            this.searchBox.setValue("");
+        }
+
+        STATE.searchQuery = "";
+        STATE.sortKey = "_name";
+        STATE.sortDescending = false;
+        STATE.activeFilters.clear();
+        STATE.activePartFilters.clear();
+        STATE.mainScroll = 0;
+
+        this.updateNavigationButtons();
+        this.updateSortOrderButton();
+        this.updateSortOptions();
+        this.updateFilterOptions();
+        this.updatePartFilterOptions();
+        this.rebuildVisibleEntries();
+        this.updateButtonStates();
+
+        this.showFilterPopup = false;
+        this.showPartFilterPopup = false;
+        this.showSortPopup = false;
     }
 
     private void updateSortOrderButton() {
@@ -328,10 +398,10 @@ public class CatalogScreen extends Screen {
             });
         }
 
-        String query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
+        String query = this.searchQuery.trim();
         if (!query.isEmpty()) {
             filtered = filtered.stream()
-                    .filter(e -> e.getSearchText().toLowerCase(Locale.ROOT).contains(query))
+                    .filter(e -> SearchUtils.matches(e.getSearchText(), query))
                     .collect(Collectors.toList());
         }
 
@@ -1502,6 +1572,16 @@ public class CatalogScreen extends Screen {
 
     @Override
     public void onClose() {
+        STATE.page = this.page;
+        STATE.searchQuery = this.searchQuery;
+        STATE.sortKey = this.currentSortKey;
+        STATE.sortDescending = this.sortDescending;
+        STATE.activeFilters = new HashSet<>(this.activeFilters);
+        STATE.activePartFilters = new HashSet<>(this.activePartFilters);
+        STATE.mainScroll = this.mainScroll;
+        STATE.filterPopupScroll = this.filterPopupScroll;
+        STATE.partFilterPopupScroll = this.partFilterPopupScroll;
+        STATE.sortPopupScroll = this.sortPopupScroll;
         Minecraft.getInstance().setScreen(this.parent);
     }
 

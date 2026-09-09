@@ -173,6 +173,7 @@ configurations {
 dependencies {
     implementation files('libs/silent-gear-1.21.1-neoforge-4.2.1.1.jar')
     implementation files('libs/silent-lib-1.21-neoforge-10.3.1.jar')
+    implementation files('libs/jecharacters-1.21.1-neoforge-4.5.26.jar')
     //compileOnly("mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}")
     //runtimeOnly("mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}")
 }
