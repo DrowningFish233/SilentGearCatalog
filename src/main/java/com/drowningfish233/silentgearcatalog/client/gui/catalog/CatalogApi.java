@@ -19,8 +19,7 @@ public final class CatalogApi {
         default Set<String> getTraitIds() { return getTraitLevels().keySet(); }
         List<String> getTraitDescriptions();
 
-        Map<String, Double> getAttributeValues();
-        Map<String, String> getAttributeTexts();
+        Map<String, PartData.AttributeValue> getAttributeValues();
     }
 
     public interface MaterialView extends EntryView {

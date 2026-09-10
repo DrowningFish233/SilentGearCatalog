@@ -25,13 +25,16 @@ public class ModLanguageProvider extends LanguageProvider {
 
     private void addEnglish() {
         add("item.silentgearcatalog.catalog", "Silent Gear Catalog");
-        add("item.silentgearcatalog.catalog.tooltip", "A powerful tome for querying Silent Gear materials and traits");
-        add("itemGroup.silentgearcatalog", "Silent Gear Catalog");
-
         add("screen.silentgearcatalog.catalog", "Silent Gear Catalog");
         add("gui.silentgearcatalog.search", "Search");
         add("gui.silentgearcatalog.search_hint", "Search materials or traits...");
-
+        add("sort.silentgearcatalog.sort_mode", "Sort Mode");
+        add("sort.silentgearcatalog.mode.effective", "Effective");
+        add("sort.silentgearcatalog.mode.flat", "Flat");
+        add("sort.silentgearcatalog.mode.multiplier", "Multiplier");
+        add("filter.silentgearcatalog.has_flat", "Flat Only");
+        add("filter.silentgearcatalog.has_multiplier", "Multiplier Only");
+        add("filter.silentgearcatalog.has_both", "Flat + Multiplier");
         add("button.silentgearcatalog.materials", "Materials");
         add("button.silentgearcatalog.traits", "Traits");
         add("button.silentgearcatalog.filter", "Filter");
@@ -78,12 +81,16 @@ public class ModLanguageProvider extends LanguageProvider {
 
     private void addChinese() {
         add("item.silentgearcatalog.catalog", "寂静装备目录");
-        add("item.silentgearcatalog.catalog.tooltip", "可以用来查询寂静装备材料/特性的强大宝典");
-        add("itemGroup.silentgearcatalog", "寂静装备目录");
-
         add("screen.silentgearcatalog.catalog", "寂静装备目录");
         add("gui.silentgearcatalog.search", "搜索");
         add("gui.silentgearcatalog.search_hint", "搜索材料或特性...");
+        add("sort.silentgearcatalog.sort_mode", "排序方式");
+        add("sort.silentgearcatalog.mode.effective", "综合值");
+        add("sort.silentgearcatalog.mode.flat", "基础值");
+        add("sort.silentgearcatalog.mode.multiplier", "倍率");
+        add("filter.silentgearcatalog.has_flat", "只有基础值");
+        add("filter.silentgearcatalog.has_multiplier", "只有倍率");
+        add("filter.silentgearcatalog.has_both", "基础值+倍率");
 
         add("button.silentgearcatalog.materials", "材料");
         add("button.silentgearcatalog.traits", "特性");

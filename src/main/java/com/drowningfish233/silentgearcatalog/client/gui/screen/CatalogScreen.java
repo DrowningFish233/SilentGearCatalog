@@ -29,12 +29,14 @@ public class CatalogScreen extends Screen {
         String searchQuery = "";
         String sortKey = "_name";
         boolean sortDescending = false;
+        AttributeSort.SortMode sortMode = AttributeSort.SortMode.EFFECTIVE;
         Set<String> activeFilters = new HashSet<>();
         Set<String> activePartFilters = new HashSet<>();
         int mainScroll = 0;
         int filterPopupScroll = 0;
         int partFilterPopupScroll = 0;
         int sortPopupScroll = 0;
+        int sortModePopupScroll = 0;
     }
 
     private final Screen parent;
@@ -49,16 +51,22 @@ public class CatalogScreen extends Screen {
     private CatalogButton partFilterButton;
     private CatalogButton sortButton;
     private CatalogButton sortOrderButton;
+    private CatalogButton sortModeButton;
     private CatalogButton resetButton;
     private String searchQuery = STATE.searchQuery;
     private int mainScroll = STATE.mainScroll;
 
     private String currentSortKey = STATE.sortKey;
     private boolean sortDescending = STATE.sortDescending;
+    private AttributeSort.SortMode sortMode = STATE.sortMode;
     private boolean showSortPopup = false;
     private Map<String, AttributeSort> availableSorts = new LinkedHashMap<>();
     private int sortPopupScroll = STATE.sortPopupScroll;
     private static final int SORT_POPUP_MAX_ROWS = 12;
+
+    private boolean showSortModePopup = false;
+    private int sortModePopupScroll = STATE.sortModePopupScroll;
+    private static final int SORT_MODE_POPUP_MAX_ROWS = 12;
 
     private boolean showFilterPopup = false;
     private Set<String> activeFilters = new HashSet<>(STATE.activeFilters);
@@ -106,10 +114,12 @@ public class CatalogScreen extends Screen {
         this.searchQuery = STATE.searchQuery;
         this.currentSortKey = STATE.sortKey;
         this.sortDescending = STATE.sortDescending;
+        this.sortMode = STATE.sortMode;
         this.mainScroll = STATE.mainScroll;
         this.filterPopupScroll = STATE.filterPopupScroll;
         this.partFilterPopupScroll = STATE.partFilterPopupScroll;
         this.sortPopupScroll = STATE.sortPopupScroll;
+        this.sortModePopupScroll = STATE.sortModePopupScroll;
         this.activeFilters = new HashSet<>(STATE.activeFilters);
         this.activePartFilters = new HashSet<>(STATE.activePartFilters);
     }
@@ -153,7 +163,7 @@ public class CatalogScreen extends Screen {
 
         int searchX = this.contentX;
         int searchY = this.panelY + 6;
-        int searchWidth = Math.max(120, this.contentWidth - 290);
+        int searchWidth = Math.max(120, this.contentWidth - 342);
 
         this.searchBox = this.addRenderableWidget(new EditBox(
                 this.font, searchX, searchY, searchWidth, 20,
@@ -184,14 +194,20 @@ public class CatalogScreen extends Screen {
                 b -> this.toggleSortPopup()
         ));
 
+        this.sortModeButton = this.addRenderableWidget(new CatalogButton(
+                btnX + 162, searchY, 50, 20,
+                Component.literal(this.sortMode.displayName()),
+                b -> this.toggleSortModePopup()
+        ));
+
         this.sortOrderButton = this.addRenderableWidget(new CatalogButton(
-                btnX + 162, searchY, 30, 20,
+                btnX + 216, searchY, 30, 20,
                 Component.translatable(this.sortDescending ? "button.silentgearcatalog.sort_desc" : "button.silentgearcatalog.sort_asc"),
                 b -> this.toggleSortOrder()
         ));
 
         this.resetButton = this.addRenderableWidget(new CatalogButton(
-                btnX + 196, searchY, 40, 20,
+                btnX + 250, searchY, 24, 20,
                 Component.literal("↺"),
                 b -> this.resetAllSettings()
         ));
@@ -205,6 +221,7 @@ public class CatalogScreen extends Screen {
         if (this.showFilterPopup) {
             this.showSortPopup = false;
             this.showPartFilterPopup = false;
+            this.showSortModePopup = false;
         }
     }
 
@@ -214,6 +231,7 @@ public class CatalogScreen extends Screen {
         if (this.showPartFilterPopup) {
             this.showFilterPopup = false;
             this.showSortPopup = false;
+            this.showSortModePopup = false;
             this.updatePartFilterOptions();
         }
     }
@@ -224,6 +242,17 @@ public class CatalogScreen extends Screen {
         if (this.showSortPopup) {
             this.showFilterPopup = false;
             this.showPartFilterPopup = false;
+            this.showSortModePopup = false;
+        }
+    }
+
+    private void toggleSortModePopup() {
+        this.showSortModePopup = !this.showSortModePopup;
+        this.sortModePopupScroll = 0;
+        if (this.showSortModePopup) {
+            this.showFilterPopup = false;
+            this.showPartFilterPopup = false;
+            this.showSortPopup = false;
         }
     }
 
@@ -234,11 +263,19 @@ public class CatalogScreen extends Screen {
         this.updateButtonStates();
     }
 
+    private void selectSortMode(AttributeSort.SortMode mode) {
+        this.sortMode = mode;
+        this.sortModeButton.setMessage(Component.literal(this.sortMode.displayName()));
+        this.showSortModePopup = false;
+        this.rebuildVisibleEntries();
+    }
+
     private void resetAllSettings() {
         this.page = Page.MATERIALS;
         this.searchQuery = "";
         this.currentSortKey = "_name";
         this.sortDescending = false;
+        this.sortMode = AttributeSort.SortMode.EFFECTIVE;
         this.activeFilters.clear();
         this.activePartFilters.clear();
         this.mainScroll = 0;
@@ -250,13 +287,21 @@ public class CatalogScreen extends Screen {
         if (this.searchBox != null) {
             this.searchBox.setValue("");
         }
+        if (this.sortModeButton != null) {
+            this.sortModeButton.setMessage(Component.literal(this.sortMode.displayName()));
+        }
 
         STATE.searchQuery = "";
         STATE.sortKey = "_name";
         STATE.sortDescending = false;
+        STATE.sortMode = AttributeSort.SortMode.EFFECTIVE;
         STATE.activeFilters.clear();
         STATE.activePartFilters.clear();
         STATE.mainScroll = 0;
+        STATE.filterPopupScroll = 0;
+        STATE.partFilterPopupScroll = 0;
+        STATE.sortPopupScroll = 0;
+        STATE.sortModePopupScroll = 0;
 
         this.updateNavigationButtons();
         this.updateSortOrderButton();
@@ -269,6 +314,7 @@ public class CatalogScreen extends Screen {
         this.showFilterPopup = false;
         this.showPartFilterPopup = false;
         this.showSortPopup = false;
+        this.showSortModePopup = false;
     }
 
     private void updateSortOrderButton() {
@@ -377,7 +423,7 @@ public class CatalogScreen extends Screen {
             filtered.removeIf(entry -> {
                 for (String filterId : this.activeFilters) {
                     for (AttributeFilter filter : this.availableFilters) {
-                        if (filter.id().equals(filterId) && !filter.predicate().test(entry)) {
+                        if (filter.id().equals(filterId) && !filter.test(entry, this.activePartFilters)) {
                             return true;
                         }
                     }
@@ -407,7 +453,7 @@ public class CatalogScreen extends Screen {
 
         AttributeSort sort = this.availableSorts.get(this.currentSortKey);
         if (sort != null) {
-            filtered.sort(sort.getComparator(this.sortDescending));
+            filtered.sort(sort.getComparator(this.sortDescending, this.activePartFilters, this.sortMode));
         } else {
             filtered.sort(Comparator.comparing(CatalogEntry::getName));
         }
@@ -447,6 +493,7 @@ public class CatalogScreen extends Screen {
         if (this.showFilterPopup) renderFilterPopup(graphics, mouseX, mouseY);
         if (this.showPartFilterPopup) renderPartFilterPopup(graphics, mouseX, mouseY);
         if (this.showSortPopup) renderSortPopup(graphics, mouseX, mouseY);
+        if (this.showSortModePopup) renderSortModePopup(graphics, mouseX, mouseY);
         if (this.detailEntry != null) renderDetailPanel(graphics, mouseX, mouseY);
     }
 
@@ -581,7 +628,33 @@ public class CatalogScreen extends Screen {
                     mouseY >= popupY && mouseY < popupY + popupHeight;
         }
 
-        boolean mouseInPopup = mouseInDetail || mouseInFilterPopup || mouseInPartFilterPopup || mouseInSortPopup;
+        boolean mouseInSortModePopup = false;
+        if (this.showSortModePopup) {
+            int popupX = this.sortModeButton.getX();
+            int popupY = this.sortModeButton.getY() + this.sortModeButton.getHeight() + 2;
+            int popupWidth = 120;
+            int totalOptions = AttributeSort.SortMode.values().length;
+            int visibleRows2 = Math.min(SORT_MODE_POPUP_MAX_ROWS, totalOptions);
+            int popupHeight = visibleRows2 * 18 + 18;
+
+            if (popupX + popupWidth > this.panelX + this.panelWidth - 4) {
+                popupX = this.panelX + this.panelWidth - popupWidth - 4;
+            }
+            if (popupX < this.panelX + 4) {
+                popupX = this.panelX + 4;
+            }
+            if (popupY + popupHeight > this.panelY + this.panelHeight - 4) {
+                popupY = this.panelY + this.panelHeight - popupHeight - 4;
+            }
+            if (popupY < this.panelY + 4) {
+                popupY = this.panelY + 4;
+            }
+
+            mouseInSortModePopup = mouseX >= popupX && mouseX < popupX + popupWidth &&
+                    mouseY >= popupY && mouseY < popupY + popupHeight;
+        }
+
+        boolean mouseInPopup = mouseInDetail || mouseInFilterPopup || mouseInPartFilterPopup || mouseInSortPopup || mouseInSortModePopup;
 
         for (int index = this.mainScroll; index < end; index++) {
             int rowY = this.listY + (index - this.mainScroll) * ROW_HEIGHT;
@@ -653,13 +726,27 @@ public class CatalogScreen extends Screen {
         AttributeSort sort = this.availableSorts.get(this.currentSortKey);
         if (sort == null || sort.attributeKey() == null) return "";
 
-        Double value = entry.getAttributeValues().get(sort.attributeKey());
-        if (value == null || value <= 0.0001) return "";
+        PartData.AttributeValue best = null;
 
-        if (value == Math.floor(value)) {
-            return String.format(Locale.ROOT, "%.0f", value);
+        if (!this.activePartFilters.isEmpty()) {
+            for (PartData partData : entry.getPartData()) {
+                if (this.activePartFilters.contains(partData.partType())) {
+                    PartData.AttributeValue v = partData.attributeValues().get(sort.attributeKey());
+                    if (v != null && (best == null || v.effective() > best.effective())) {
+                        best = v;
+                    }
+                }
+            }
+        } else {
+            for (PartData partData : entry.getPartData()) {
+                PartData.AttributeValue v = partData.attributeValues().get(sort.attributeKey());
+                if (v != null && (best == null || v.effective() > best.effective())) {
+                    best = v;
+                }
+            }
         }
-        return String.format(Locale.ROOT, "%.1f", value);
+
+        return best == null ? "" : best.displayText();
     }
 
     private void renderStats(GuiGraphics graphics) {
@@ -680,7 +767,8 @@ public class CatalogScreen extends Screen {
             Component orderKey = this.sortDescending ?
                     Component.translatable("button.silentgearcatalog.sort_desc") :
                     Component.translatable("button.silentgearcatalog.sort_asc");
-            text.append(Component.translatable("catalog.silentgearcatalog.sort_label", sortName, orderKey.getString()));
+            text.append(Component.translatable("catalog.silentgearcatalog.sort_label",
+                    sortName + " " + this.sortMode.displayName(), orderKey.getString()));
 
             graphics.drawString(this.font, text, this.contentX, this.panelY + this.panelHeight - 12, 0x888888, false);
         } else {
@@ -918,6 +1006,67 @@ public class CatalogScreen extends Screen {
         }
     }
 
+    private void renderSortModePopup(GuiGraphics graphics, int mouseX, int mouseY) {
+        int popupX = this.sortModeButton.getX();
+        int popupY = this.sortModeButton.getY() + this.sortModeButton.getHeight() + 2;
+        int popupWidth = 120;
+        int totalOptions = AttributeSort.SortMode.values().length;
+        int visibleRows = Math.min(SORT_MODE_POPUP_MAX_ROWS, totalOptions);
+        int popupHeight = visibleRows * 18 + 18;
+
+        if (popupX + popupWidth > this.panelX + this.panelWidth - 4) {
+            popupX = this.panelX + this.panelWidth - popupWidth - 4;
+        }
+        if (popupX < this.panelX + 4) {
+            popupX = this.panelX + 4;
+        }
+        if (popupY + popupHeight > this.panelY + this.panelHeight - 4) {
+            popupY = this.panelY + this.panelHeight - popupHeight - 4;
+        }
+        if (popupY < this.panelY + 4) {
+            popupY = this.panelY + 4;
+        }
+
+        graphics.fill(popupX - 1, popupY - 1, popupX + popupWidth + 1, popupY + popupHeight + 1, 0xFF444444);
+        graphics.fill(popupX, popupY, popupX + popupWidth, popupY + popupHeight, 0xFF222222);
+
+        graphics.drawString(this.font, Component.translatable("sort.silentgearcatalog.sort_mode"),
+                popupX + 6, popupY + 3, 0x888888, false);
+        graphics.fill(popupX + 2, popupY + 16, popupX + popupWidth - 2, popupY + 17, 0xFF444444);
+
+        int listStartY = popupY + 18;
+        int listEndY = popupY + popupHeight - 2;
+        graphics.enableScissor(popupX + 2, listStartY, popupX + popupWidth - 2, listEndY);
+
+        int maxScroll = Math.max(0, totalOptions - visibleRows);
+        this.sortModePopupScroll = clamp(this.sortModePopupScroll, 0, maxScroll);
+
+        AttributeSort.SortMode[] modes = AttributeSort.SortMode.values();
+        for (int i = 0; i < visibleRows && i + this.sortModePopupScroll < totalOptions; i++) {
+            int idx = i + this.sortModePopupScroll;
+            AttributeSort.SortMode mode = modes[idx];
+            int y = listStartY + i * 18;
+
+            boolean selected = mode == this.sortMode;
+            boolean hovered = mouseX >= popupX && mouseX < popupX + popupWidth &&
+                    mouseY >= y && mouseY < y + 18;
+
+            if (hovered) {
+                graphics.fill(popupX + 2, y, popupX + popupWidth - 2, y + 18, 0x44FFFFFF);
+            }
+
+            String text = (selected ? "✓ " : "  ") + mode.displayName();
+            int color = selected ? 0xFFFFAA : (hovered ? 0xFFFFFF : 0xCCCCCC);
+            graphics.drawString(this.font, text, popupX + 10, y + 4, color, false);
+
+            if (selected) {
+                graphics.fill(popupX + 2, y + 2, popupX + 4, y + 16, 0xFF6600CC);
+            }
+        }
+
+        graphics.disableScissor();
+    }
+
     private Component getPropertyDisplayName(String key) {
         String rawKey = key;
         if (rawKey.contains(":")) {
@@ -1089,15 +1238,15 @@ public class CatalogScreen extends Screen {
                     }
                 }
 
-                Map<String, Double> attrs = partData.attributeValues();
+                Map<String, PartData.AttributeValue> attrs = partData.attributeValues();
                 if (!attrs.isEmpty()) {
                     graphics.drawString(font, Component.translatable("detail.silentgearcatalog.attributes"),
                             this.detailX + 6, y, 0x00BBFF, false);
                     y += font.lineHeight + 2;
-                    for (Map.Entry<String, Double> entry : attrs.entrySet()) {
+                    for (Map.Entry<String, PartData.AttributeValue> entry : attrs.entrySet()) {
                         String key = entry.getKey();
                         Component keyName = getPropertyDisplayName(key);
-                        String value = formatValue(entry.getValue());
+                        String value = entry.getValue().displayText();
                         String text = "  §f" + keyName.getString() + ": §e" + value;
                         graphics.drawString(font, text, this.detailX + 6, y, 0xCCCCCC, false);
                         y += 11;
@@ -1185,11 +1334,6 @@ public class CatalogScreen extends Screen {
         }
 
         return h + 4;
-    }
-
-    private String formatValue(double value) {
-        if (value == (long) value) return String.valueOf((long) value);
-        return String.format("%.2f", value);
     }
 
     private int visibleRows() {
@@ -1380,6 +1524,43 @@ public class CatalogScreen extends Screen {
             }
         }
 
+        if (this.showSortModePopup) {
+            int popupX = this.sortModeButton.getX();
+            int popupY = this.sortModeButton.getY() + this.sortModeButton.getHeight() + 2;
+            int popupWidth = 120;
+            int totalOptions = AttributeSort.SortMode.values().length;
+            int visibleRows = Math.min(SORT_MODE_POPUP_MAX_ROWS, totalOptions);
+            int popupHeight = visibleRows * 18 + 18;
+
+            if (popupX + popupWidth > this.panelX + this.panelWidth - 4) {
+                popupX = this.panelX + this.panelWidth - popupWidth - 4;
+            }
+            if (popupX < this.panelX + 4) {
+                popupX = this.panelX + 4;
+            }
+            if (popupY + popupHeight > this.panelY + this.panelHeight - 4) {
+                popupY = this.panelY + this.panelHeight - popupHeight - 4;
+            }
+            if (popupY < this.panelY + 4) {
+                popupY = this.panelY + 4;
+            }
+
+            if (mouseX >= popupX && mouseX < popupX + popupWidth &&
+                    mouseY >= popupY && mouseY < popupY + popupHeight) {
+                int listStartY = popupY + 18;
+                int row = (int) ((mouseY - listStartY) / 18);
+                int idx = row + this.sortModePopupScroll;
+                if (idx >= 0 && idx < totalOptions) {
+                    this.selectSortMode(AttributeSort.SortMode.values()[idx]);
+                    return true;
+                }
+                return true;
+            } else {
+                this.showSortModePopup = false;
+                return true;
+            }
+        }
+
         if (this.detailEntry != null && this.hoveredTraitName != null && button == 0) {
             int traitX = this.detailX + 6;
             int traitY = this.hoveredTraitY;
@@ -1533,6 +1714,22 @@ public class CatalogScreen extends Screen {
             }
         }
 
+        if (this.showSortModePopup) {
+            int popupX = this.sortModeButton.getX();
+            int popupY = this.sortModeButton.getY() + this.sortModeButton.getHeight() + 2;
+            int popupWidth = 120;
+            int totalOptions = AttributeSort.SortMode.values().length;
+            int visibleRows = Math.min(SORT_MODE_POPUP_MAX_ROWS, totalOptions);
+
+            if (mouseX >= popupX && mouseX < popupX + popupWidth &&
+                    mouseY >= popupY && mouseY < popupY + visibleRows * 18 + 18) {
+                int delta = (int) -scrollY;
+                int maxScroll = Math.max(0, totalOptions - visibleRows);
+                this.sortModePopupScroll = clamp(this.sortModePopupScroll + delta, 0, maxScroll);
+                return true;
+            }
+        }
+
         if (mouseX >= this.contentX && mouseX < this.contentX + this.contentWidth &&
                 mouseY >= this.listY && mouseY < this.listBottom) {
             int delta = (int) -scrollY;
@@ -1551,6 +1748,7 @@ public class CatalogScreen extends Screen {
             if (this.showFilterPopup) { this.showFilterPopup = false; return true; }
             if (this.showPartFilterPopup) { this.showPartFilterPopup = false; return true; }
             if (this.showSortPopup) { this.showSortPopup = false; return true; }
+            if (this.showSortModePopup) { this.showSortModePopup = false; return true; }
             if (this.detailEntry != null) {
                 this.detailEntry = null;
                 this.detailLocked = false;
@@ -1576,12 +1774,14 @@ public class CatalogScreen extends Screen {
         STATE.searchQuery = this.searchQuery;
         STATE.sortKey = this.currentSortKey;
         STATE.sortDescending = this.sortDescending;
+        STATE.sortMode = this.sortMode;
         STATE.activeFilters = new HashSet<>(this.activeFilters);
         STATE.activePartFilters = new HashSet<>(this.activePartFilters);
         STATE.mainScroll = this.mainScroll;
         STATE.filterPopupScroll = this.filterPopupScroll;
         STATE.partFilterPopupScroll = this.partFilterPopupScroll;
         STATE.sortPopupScroll = this.sortPopupScroll;
+        STATE.sortModePopupScroll = this.sortModePopupScroll;
         Minecraft.getInstance().setScreen(this.parent);
     }
 

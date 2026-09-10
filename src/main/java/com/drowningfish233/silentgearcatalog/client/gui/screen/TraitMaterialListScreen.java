@@ -77,11 +77,9 @@ public class TraitMaterialListScreen extends Screen {
         graphics.fill(this.panelX, this.panelY, this.panelX + this.panelWidth, this.panelY + 1, 0xFF444444);
         graphics.fill(this.panelX, this.panelY, this.panelX + 1, this.panelY + this.panelHeight, 0xFF444444);
 
-        // 标题
         Component title = Component.translatable("trait.silentgearcatalog.materials_with", this.traitName);
         graphics.drawString(this.font, title, this.panelX + 8, this.panelY + 8, 0xFFFFFF, false);
 
-        // 显示特性描述
         int descY = this.panelY + 8;
         if (!this.traitDescriptions.isEmpty()) {
             descY += 14;

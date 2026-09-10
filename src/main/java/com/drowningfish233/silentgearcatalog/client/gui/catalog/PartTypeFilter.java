@@ -1,7 +1,5 @@
 package com.drowningfish233.silentgearcatalog.client.gui.catalog;
 
-import com.drowningfish233.silentgearcatalog.client.gui.catalog.CatalogApi;
-import com.drowningfish233.silentgearcatalog.client.gui.catalog.CatalogEntry;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;

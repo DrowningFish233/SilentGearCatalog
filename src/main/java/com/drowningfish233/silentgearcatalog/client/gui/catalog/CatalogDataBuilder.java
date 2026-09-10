@@ -4,12 +4,15 @@ import com.drowningfish233.silentgearcatalog.Utils.SilentGearUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.silentchaos512.gear.api.item.GearType;
 import net.silentchaos512.gear.api.material.IMaterialCategory;
 import net.silentchaos512.gear.api.material.Material;
 import net.silentchaos512.gear.api.part.PartType;
 import net.silentchaos512.gear.api.property.GearProperty;
+import net.silentchaos512.gear.api.property.NumberProperty;
+import net.silentchaos512.gear.api.property.NumberPropertyValue;
 import net.silentchaos512.gear.api.traits.TraitInstance;
 import net.silentchaos512.gear.api.util.PropertyKey;
 import net.silentchaos512.gear.gear.material.MaterialInstance;
@@ -83,7 +86,6 @@ public final class CatalogDataBuilder {
         }
     }
 
-
     public static void invalidateCache() {
         cachedSnapshot = null;
     }
@@ -131,11 +133,9 @@ public final class CatalogDataBuilder {
                 ItemStack displayStack = getMaterialDisplayStack(material);
 
                 Map<String, List<PartData.TraitData>> traitsByPart = collectTraitsByPart(material);
-
                 List<PartData.TraitData> allTraits = getTraitData(traitsByPart);
 
-                Map<String, Map<String, Double>> attributesByPart = collectAttributesByPart(material);
-                Map<String, Map<String, String>> attributeTextsByPart = collectAttributeTextsByPart(material);
+                Map<String, Map<String, PartData.AttributeValue>> attributesByPart = collectAttributesByPart(material);
 
                 List<PartData> partDataList = new ArrayList<>();
 
@@ -146,15 +146,13 @@ public final class CatalogDataBuilder {
 
                     String partDisplayName = Component.translatable("part.silentgear.type." + partTypeStr).getString();
 
-                    Map<String, Double> attrs = attributesByPart.getOrDefault(partTypeStr, Map.of());
-                    Map<String, String> attrTexts = attributeTextsByPart.getOrDefault(partTypeStr, Map.of());
+                    Map<String, PartData.AttributeValue> attrs = attributesByPart.getOrDefault(partTypeStr, Map.of());
                     List<PartData.TraitData> traits = traitsByPart.getOrDefault(partTypeStr, List.of());
 
                     partDataList.add(new PartData(
                             partTypeStr,
                             partDisplayName,
                             attrs,
-                            attrTexts,
                             traits
                     ));
                 }
@@ -182,7 +180,6 @@ public final class CatalogDataBuilder {
                         partDataList,
                         allTraits,
                         attributesByPart,
-                        attributeTextsByPart,
                         0,
                         availableParts,
                         categories,
@@ -213,8 +210,7 @@ public final class CatalogDataBuilder {
                 }
             }
         }
-        List<PartData.TraitData> allTraits = new ArrayList<>(allTraitMap.values());
-        return allTraits;
+        return new ArrayList<>(allTraitMap.values());
     }
 
     private static List<CatalogEntry> buildTraits() {
@@ -234,7 +230,7 @@ public final class CatalogDataBuilder {
 
                 int maxLevel = trait.getMaxLevel();
 
-                ItemStack displayStack = new ItemStack(net.minecraft.world.item.Items.ENCHANTED_BOOK);
+                ItemStack displayStack = new ItemStack(Items.ENCHANTED_BOOK);
 
                 entries.add(new TraitCatalogEntry(
                         idStr,
@@ -360,48 +356,58 @@ public final class CatalogDataBuilder {
         return result;
     }
 
-    private static Map<String, Map<String, Double>> collectAttributesByPart(Material material) {
-        Map<String, Map<String, Double>> result = new LinkedHashMap<>();
+    private static Map<String, Map<String, PartData.AttributeValue>> collectAttributesByPart(Material material) {
+        Map<String, Map<String, PartData.AttributeValue>> result = new LinkedHashMap<>();
 
         try {
+            MaterialInstance instance = MaterialInstance.of(material);
+
             for (PartType partType : SilentGearUtils.getAllowedPartTypes(material)) {
                 ResourceLocation partId = SgRegistries.PART_TYPE.getKey(partType);
                 if (partId == null) continue;
                 String partTypeStr = partId.getPath();
 
-                Map<String, Double> attributes = new LinkedHashMap<>();
+                Map<String, PartData.AttributeValue> attributes = new LinkedHashMap<>();
 
                 for (GearProperty<?, ?> property : ALL_PROPERTIES) {
+                    if (!(property instanceof NumberProperty numberProperty)) continue;
+
+                    ResourceLocation propKey = SgRegistries.GEAR_PROPERTY.getKey(property);
+                    if (propKey == null) continue;
+                    String key = propKey.getPath();
+
                     try {
-                        String valueStr = SilentGearUtils.getMaterialPropertyValue(
-                                material, partType, property
+                        Collection<NumberPropertyValue> mods = instance.getPropertyModifiers(
+                                partType,
+                                PropertyKey.of(numberProperty, GearTypes.ALL.get())
                         );
+                        if (mods.isEmpty()) continue;
 
-                        if (valueStr != null && !valueStr.isEmpty() &&
-                                !valueStr.equals("0") && !valueStr.equals("0.0") &&
-                                !valueStr.equals("{}")) {
-
-                            ResourceLocation propKey = SgRegistries.GEAR_PROPERTY.getKey(property);
-                            if (propKey == null) continue;
-
-                            String key = propKey.getPath();
-
-                            if (key.equals("harvest_tier")) {
-                                String tierValue = parseHarvestTierValue(valueStr);
-                                try {
-                                    double val = Double.parseDouble(tierValue);
-                                    if (val > 0) {
-                                        attributes.put("harvest_tier", val);
-                                    }
-                                } catch (NumberFormatException ignored) {}
-                            } else {
-                                try {
-                                    double val = Double.parseDouble(valueStr);
-                                    if (val != 0) {
-                                        attributes.put(key, val);
-                                    }
-                                } catch (NumberFormatException ignored) {}
+                        double avg = 0, add = 0, mulBase = 0, mulTotal = 0, max = 0;
+                        for (NumberPropertyValue mod : mods) {
+                            float v = mod.value();
+                            switch (mod.operation()) {
+                                case AVERAGE -> avg += v;
+                                case ADD -> add += v;
+                                case MULTIPLY_BASE -> mulBase += v;
+                                case MULTIPLY_TOTAL -> mulTotal += v;
+                                case MAX -> max = Math.max(max, v);
                             }
+                        }
+
+                        StringBuilder sb = new StringBuilder();
+                        for (NumberPropertyValue mod : numberProperty.sortForDisplay(mods)) {
+                            String s = formatMod(numberProperty, mod);
+                            if (!s.isEmpty()) {
+                                if (sb.length() > 0) sb.append(" ");
+                                sb.append(s);
+                            }
+                        }
+
+                        PartData.AttributeValue value = new PartData.AttributeValue(
+                                avg, add, mulBase, mulTotal, max, sb.toString());
+                        if (!value.isEmpty()) {
+                            attributes.put(key, value);
                         }
                     } catch (Exception ignored) {}
                 }
@@ -415,55 +421,32 @@ public final class CatalogDataBuilder {
         return result;
     }
 
-    private static Map<String, Map<String, String>> collectAttributeTextsByPart(Material material) {
-        Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        Map<String, Map<String, Double>> attrsByPart = collectAttributesByPart(material);
-
-        for (Map.Entry<String, Map<String, Double>> entry : attrsByPart.entrySet()) {
-            String partType = entry.getKey();
-            Map<String, Double> attrs = entry.getValue();
-            Map<String, String> texts = new LinkedHashMap<>();
-            for (Map.Entry<String, Double> attr : attrs.entrySet()) {
-                texts.put(attr.getKey(), formatAttribute(attr.getKey(), attr.getValue()));
+    private static String formatMod(NumberProperty property, NumberPropertyValue mod) {
+        float v = mod.value();
+        return switch (mod.operation()) {
+            case ADD -> trim(String.format(Locale.ROOT, "%s%.2f", v < 0 ? "" : "+", v));
+            case AVERAGE -> {
+                if (property.getDisplayFormat() == NumberProperty.DisplayFormat.PERCENTAGE) {
+                    yield Math.round(v * 100) + "%";
+                }
+                String s = trim(String.format(Locale.ROOT, "%.2f", v));
+                yield property.getDisplayFormat() == NumberProperty.DisplayFormat.MULTIPLIER
+                        ? s + "x" : s;
             }
-            result.put(partType, texts);
-        }
-
-        return result;
+            case MAX -> trim(String.format(Locale.ROOT, "↑%.2f", v));
+            case MULTIPLY_BASE -> (Math.round(100 * v) >= 0 ? "+" : "") + Math.round(100 * v) + "%";
+            case MULTIPLY_TOTAL -> trim(String.format(Locale.ROOT, "x%.2f", 1 + v));
+        };
     }
 
-    private static String parseHarvestTierValue(String rawValue) {
-        if (rawValue == null || rawValue.isEmpty() || rawValue.equals("{}")) {
-            return "0";
+    private static String trim(String s) {
+        if (s.endsWith(".0")) return s.substring(0, s.length() - 2);
+        if (s.contains(".")) {
+            s = s.replaceAll("0+$", "");
+            if (s.endsWith(".")) s = s.substring(0, s.length() - 1);
         }
-        try {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("level_hint\"\\s*:\\s*\"(\\d+)\"");
-            java.util.regex.Matcher matcher = pattern.matcher(rawValue);
-            if (matcher.find()) {
-                return matcher.group(1);
-            }
-            pattern = java.util.regex.Pattern.compile("(\\d+)");
-            matcher = pattern.matcher(rawValue);
-            if (matcher.find()) {
-                return matcher.group(1);
-            }
-        } catch (Exception ignored) {}
-        return "0";
+        return s;
     }
-
-    private static String formatAttribute(String key, double value) {
-        if (key.endsWith("durability") || key.endsWith("_level") || key.endsWith("_tier")) {
-            return Integer.toString((int) Math.round(value));
-        }
-        if (key.contains("speed") || key.contains("damage") || key.contains("armor")) {
-            return String.format(Locale.ROOT, "%.1f", value);
-        }
-        if (value == (long) value) {
-            return Long.toString((long) value);
-        }
-        return String.format(Locale.ROOT, "%.2f", value);
-    }
-
 
     private static final class MaterialCatalogEntry implements CatalogEntry, CatalogApi.MaterialView {
         private final String id;
@@ -471,8 +454,7 @@ public final class CatalogDataBuilder {
         private final int tier;
         private final List<PartData> partDataList;
         private final List<PartData.TraitData> allTraits;
-        private final Map<String, Map<String, Double>> attributesByPart;
-        private final Map<String, Map<String, String>> attributeTextsByPart;
+        private final Map<String, Map<String, PartData.AttributeValue>> attributesByPart;
         private final ItemStack displayStack;
         private final String searchText;
         private final int sortOrder;
@@ -491,8 +473,7 @@ public final class CatalogDataBuilder {
 
         MaterialCatalogEntry(String id, ItemStack displayStack, String name, int tier,
                              List<PartData> partDataList, List<PartData.TraitData> allTraits,
-                             Map<String, Map<String, Double>> attributesByPart,
-                             Map<String, Map<String, String>> attributeTextsByPart,
+                             Map<String, Map<String, PartData.AttributeValue>> attributesByPart,
                              int sortOrder, int availableParts, Set<String> categories,
                              int color, String parentId, boolean simple, Set<String> supportedPartTypes) {
             this.id = id;
@@ -501,7 +482,6 @@ public final class CatalogDataBuilder {
             this.partDataList = List.copyOf(partDataList);
             this.allTraits = List.copyOf(allTraits);
             this.attributesByPart = attributesByPart;
-            this.attributeTextsByPart = attributeTextsByPart;
             this.displayStack = displayStack.copy();
             this.sortOrder = sortOrder;
             this.availableParts = availableParts;
@@ -542,79 +522,44 @@ public final class CatalogDataBuilder {
         }
 
         @Override
-        public Map<String, Double> getAttributeValues() {
-            Map<String, Double> merged = new LinkedHashMap<>();
+        public Map<String, PartData.AttributeValue> getAttributeValues() {
+            Map<String, PartData.AttributeValue> merged = new LinkedHashMap<>();
             for (PartData partData : partDataList) {
-                merged.putAll(partData.attributeValues());
+                for (Map.Entry<String, PartData.AttributeValue> e : partData.attributeValues().entrySet()) {
+                    merged.merge(e.getKey(), e.getValue(), (a, b) -> new PartData.AttributeValue(
+                            a.average() + b.average(),
+                            a.add() + b.add(),
+                            a.multiplyBase() + b.multiplyBase(),
+                            a.multiplyTotal() + b.multiplyTotal(),
+                            Math.max(a.max(), b.max()),
+                            a.displayText().isEmpty() ? b.displayText()
+                                    : (b.displayText().isEmpty() ? a.displayText()
+                                    : a.displayText() + " " + b.displayText())
+                    ));
+                }
             }
             return merged;
         }
 
-        @Override
-        public Map<String, String> getAttributeTexts() {
-            Map<String, String> merged = new LinkedHashMap<>();
-            for (PartData partData : partDataList) {
-                merged.putAll(partData.attributeTexts());
-            }
-            return merged;
-        }
-
-        @Override
-        public String getId() { return id; }
-
-        @Override
-        public String getName() { return name; }
-
-        @Override
-        public int getMaterialLevel() { return tier; }
-
-        @Override
-        public List<String> getTraitNames() { return traitNames; }
-
-        @Override
-        public Map<String, Integer> getTraitLevels() { return traitLevels; }
-
-        @Override
-        public Set<String> getTraitIds() { return traitIds; }
-
-        @Override
-        public List<String> getTraitDescriptions() { return traitDescriptions; }
-
-        @Override
-        public ItemStack getDisplayStack() { return displayStack.copy(); }
-
-        @Override
-        public String getSearchText() { return searchText; }
-
-        @Override
-        public List<TraitTooltip> getTraitTooltips() { return traitTooltips; }
-
-        @Override
-        public Set<String> getCategories() { return categories; }
-
-        @Override
-        public int getDefaultSortOrder() { return sortOrder; }
-
-        @Override
-        public int getAvailablePartCount() { return availableParts; }
-
-        @Override
-        public ItemStack getMaterialDisplayItem() { return displayStack.copy(); }
-
-        @Override
-        public int getColor() { return color; }
-
-        @Override
-        public String getParentId() { return parentId; }
-
-        @Override
-        public boolean isSimple() { return simple; }
-
-        @Override
-        public Set<String> getSupportedPartTypes() { return supportedPartTypes; }
-
-        @Override
-        public List<PartData> getPartData() { return partDataList; }
+        @Override public String getId() { return id; }
+        @Override public String getName() { return name; }
+        @Override public int getMaterialLevel() { return tier; }
+        @Override public List<String> getTraitNames() { return traitNames; }
+        @Override public Map<String, Integer> getTraitLevels() { return traitLevels; }
+        @Override public Set<String> getTraitIds() { return traitIds; }
+        @Override public List<String> getTraitDescriptions() { return traitDescriptions; }
+        @Override public ItemStack getDisplayStack() { return displayStack.copy(); }
+        @Override public String getSearchText() { return searchText; }
+        @Override public List<TraitTooltip> getTraitTooltips() { return traitTooltips; }
+        @Override public Set<String> getCategories() { return categories; }
+        @Override public int getDefaultSortOrder() { return sortOrder; }
+        @Override public int getAvailablePartCount() { return availableParts; }
+        @Override public ItemStack getMaterialDisplayItem() { return displayStack.copy(); }
+        @Override public int getColor() { return color; }
+        @Override public String getParentId() { return parentId; }
+        @Override public boolean isSimple() { return simple; }
+        @Override public Set<String> getSupportedPartTypes() { return supportedPartTypes; }
+        @Override public List<PartData> getPartData() { return partDataList; }
     }
 
     static final class TraitCatalogEntry implements CatalogEntry, CatalogApi.TraitView {
@@ -658,8 +603,7 @@ public final class CatalogDataBuilder {
         @Override public Map<String, Integer> getTraitLevels() { return traitLevels; }
         @Override public Set<String> getTraitIds() { return traitIds; }
         @Override public List<String> getTraitDescriptions() { return descriptions; }
-        @Override public Map<String, Double> getAttributeValues() { return Map.of(); }
-        @Override public Map<String, String> getAttributeTexts() { return Map.of(); }
+        @Override public Map<String, PartData.AttributeValue> getAttributeValues() { return Map.of(); }
         @Override public ItemStack getDisplayStack() { return displayStack.copy(); }
         @Override public String getSearchText() { return searchText; }
         @Override public List<TraitTooltip> getTraitTooltips() { return traitTooltips; }

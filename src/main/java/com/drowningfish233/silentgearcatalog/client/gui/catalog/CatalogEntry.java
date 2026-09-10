@@ -1,10 +1,8 @@
 package com.drowningfish233.silentgearcatalog.client.gui.catalog;
 
-import com.drowningfish233.silentgearcatalog.client.gui.catalog.CatalogApi;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public interface CatalogEntry extends CatalogApi.EntryView {

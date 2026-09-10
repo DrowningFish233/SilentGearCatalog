@@ -1,12 +1,12 @@
 package com.drowningfish233.silentgearcatalog.client.gui.catalog;
 
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public record AttributeSort(
         String id,
@@ -14,11 +14,29 @@ public record AttributeSort(
         String attributeKey,
         String translationKey
 ) {
-    // 预定义的翻译key
+    public enum SortMode {
+        EFFECTIVE("sort.silentgearcatalog.mode.effective"),
+        FLAT("sort.silentgearcatalog.mode.flat"),
+        MULTIPLIER("sort.silentgearcatalog.mode.multiplier");
+
+        private final String translationKey;
+
+        SortMode(String translationKey) {
+            this.translationKey = translationKey;
+        }
+
+        public Component displayComponent() {
+            return Component.translatable(translationKey);
+        }
+
+        public String displayName() {
+            return displayComponent().getString();
+        }
+    }
+
     public static final Map<String, String> TRANSLATION_KEYS = new LinkedHashMap<>();
 
     static {
-        // 基础属性
         TRANSLATION_KEYS.put("silentgear:durability", "property.silentgear.durability");
         TRANSLATION_KEYS.put("silentgear:armor", "property.silentgear.armor");
         TRANSLATION_KEYS.put("silentgear:armor_toughness", "property.silentgear.armor_toughness");
@@ -39,7 +57,6 @@ public record AttributeSort(
         TRANSLATION_KEYS.put("silentgear:repair_value", "property.silentgear.repair_value");
         TRANSLATION_KEYS.put("silentgear:enchantment_value", "property.silentgear.enchantment_value");
 
-        // 自定义属性（使用 silentgear 命名空间，因为 RFGearProperties 注册在 silentgear 下）
         TRANSLATION_KEYS.put("silentgear:forge_positive_chance", "property.silentgear.forge_positive_chance");
         TRANSLATION_KEYS.put("silentgear:forge_power", "property.silentgear.forge_power");
         TRANSLATION_KEYS.put("silentgear:geas_limit", "property.silentgear.geas_limit");
@@ -68,10 +85,8 @@ public record AttributeSort(
     public static Map<String, AttributeSort> buildFromEntries(List<CatalogEntry> entries) {
         Map<String, AttributeSort> sorts = new LinkedHashMap<>();
 
-        // 名称排序
         sorts.put("_name", createNameSort());
 
-        // 收集所有材料中出现的属性键
         for (CatalogEntry entry : entries) {
             for (String key : entry.getAttributeValues().keySet()) {
                 if (!sorts.containsKey(key)) {
@@ -88,6 +103,10 @@ public record AttributeSort(
     }
 
     public Comparator<CatalogEntry> getComparator(boolean descending) {
+        return getComparator(descending, Set.of(), SortMode.EFFECTIVE);
+    }
+
+    public Comparator<CatalogEntry> getComparator(boolean descending, Set<String> activePartFilters, SortMode mode) {
         if ("_name".equals(id) || attributeKey == null) {
             Comparator<CatalogEntry> comparator = Comparator.comparing(
                     CatalogEntry::getName, String.CASE_INSENSITIVE_ORDER
@@ -95,12 +114,42 @@ public record AttributeSort(
             return descending ? comparator.reversed() : comparator;
         }
 
-        Comparator<CatalogEntry> comparator = (a, b) -> {
-            double valA = a.getAttributeValues().getOrDefault(attributeKey, Double.NEGATIVE_INFINITY);
-            double valB = b.getAttributeValues().getOrDefault(attributeKey, Double.NEGATIVE_INFINITY);
-            return Double.compare(valA, valB);
-        };
-
+        Comparator<CatalogEntry> comparator = Comparator
+                .comparingDouble((CatalogEntry entry) -> getSortValue(entry, activePartFilters, mode))
+                .thenComparing(entry -> entry.getName().toLowerCase());
         return descending ? comparator.reversed() : comparator;
+    }
+
+    private double getSortValue(CatalogEntry entry, Set<String> activePartFilters, SortMode mode) {
+        double best = Double.NEGATIVE_INFINITY;
+
+        if (activePartFilters != null && !activePartFilters.isEmpty()) {
+            for (PartData partData : entry.getPartData()) {
+                if (activePartFilters.contains(partData.partType())) {
+                    PartData.AttributeValue v = partData.attributeValues().get(attributeKey);
+                    if (v != null) {
+                        double sv = pick(v, mode);
+                        if (sv > best) best = sv;
+                    }
+                }
+            }
+        } else {
+            for (PartData partData : entry.getPartData()) {
+                PartData.AttributeValue v = partData.attributeValues().get(attributeKey);
+                if (v != null) {
+                    double sv = pick(v, mode);
+                    if (sv > best) best = sv;
+                }
+            }
+        }
+        return best;
+    }
+
+    private double pick(PartData.AttributeValue v, SortMode mode) {
+        return switch (mode) {
+            case FLAT -> v.flat();
+            case MULTIPLIER -> v.multiplier();
+            case EFFECTIVE -> v.effective();
+        };
     }
 }

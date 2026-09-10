@@ -46,8 +46,7 @@ authors="Drowningfish233"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-A mod made for the Reverie Foundry modpack!
-Includes a series of features!
+Added a better material lookup tool for SilentGear.
 '''
 
 # The [[accessTransformers]] block allows you to declare where your AT file is.

@@ -1,9 +1,9 @@
 package com.drowningfish233.silentgearcatalog.client.gui.screen;
 
+import com.drowningfish233.silentgearcatalog.SilentGearCatalog;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import com.drowningfish233.silentgearcatalog.SilentGearCatalog;
 
 public final class CatalogSkin {
     public static final ResourceLocation TEXTURE =
