@@ -24,6 +24,8 @@ import net.silentchaos512.gear.setup.gear.PartTypes;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class CatalogDataBuilder {
     private static final PartType DEFAULT_PART = PartTypes.MAIN.get();
@@ -370,11 +372,26 @@ public final class CatalogDataBuilder {
                 Map<String, PartData.AttributeValue> attributes = new LinkedHashMap<>();
 
                 for (GearProperty<?, ?> property : ALL_PROPERTIES) {
-                    if (!(property instanceof NumberProperty numberProperty)) continue;
-
                     ResourceLocation propKey = SgRegistries.GEAR_PROPERTY.getKey(property);
                     if (propKey == null) continue;
                     String key = propKey.getPath();
+
+                    if (key.equals("harvest_tier")) {
+                        try {
+                            String valueStr = SilentGearUtils.getMaterialPropertyValue(material, partType, property);
+                            if (valueStr != null && !valueStr.isEmpty() && !valueStr.equals("{}")) {
+                                String tierValue = parseHarvestTierValue(valueStr);
+                                double val = Double.parseDouble(tierValue);
+                                if (val > 0) {
+                                    attributes.put("harvest_tier", new PartData.AttributeValue(
+                                            val, 0, 0, 0, 0, String.valueOf((int) val)));
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                        continue;
+                    }
+
+                    if (!(property instanceof NumberProperty numberProperty)) continue;
 
                     try {
                         Collection<NumberPropertyValue> mods = instance.getPropertyModifiers(
@@ -419,6 +436,25 @@ public final class CatalogDataBuilder {
         } catch (Exception ignored) {}
 
         return result;
+    }
+
+    private static String parseHarvestTierValue(String rawValue) {
+        if (rawValue == null || rawValue.isEmpty() || rawValue.equals("{}")) {
+            return "0";
+        }
+        try {
+            Pattern pattern = Pattern.compile("level_hint\"\\s*:\\s*\"(\\d+)\"");
+            Matcher matcher = pattern.matcher(rawValue);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+            pattern = Pattern.compile("(\\d+)");
+            matcher = pattern.matcher(rawValue);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (Exception ignored) {}
+        return "0";
     }
 
     private static String formatMod(NumberProperty property, NumberPropertyValue mod) {
